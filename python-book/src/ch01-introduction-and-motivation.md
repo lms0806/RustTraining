@@ -24,47 +24,58 @@ Python is famously slow for CPU-bound work. Rust provides C-level performance
 with a high-level feel.
 
 ```python
-# Python — ~45 seconds for 10 million iterations
+# Python — typically several seconds for 10 million iterations
 import time
 
 def fibonacci(n: int) -> int:
-    if n <= 1:
-        return n
     a, b = 0, 1
-    for _ in range(2, n + 1):
+    for _ in range(n):
         a, b = b, a + b
-    return b
+    return a
 
 start = time.perf_counter()
-results = [fibonacci(i) for i in range(10_000_000)]
+
+acc = 0
+for _ in range(10_000_000):
+    acc ^= fibonacci(40)
+
 elapsed = time.perf_counter() - start
-print(f"Elapsed: {elapsed:.2f}s")  # ~45s on typical hardware
+
+print(f"Elapsed: {elapsed:.2f}s")
+print("Ignore:", acc)
 ```
 
 ```rust
-// Rust — ~0.3 seconds for the same 10 million iterations
+// Rust — typically sub-second for 10 million iterations (release build)
 use std::time::Instant;
 
+#[inline(always)]
 fn fibonacci(n: u64) -> u64 {
-    if n <= 1 {
-        return n;
+    let mut a = 0;
+    let mut b = 1;
+
+    for _ in 0..n {
+        let temp = a;
+        a = b;
+        b = temp + b;
     }
-    let (mut a, mut b) = (0u64, 1u64);
-    for _ in 2..=n {
-        let temp = b;
-        b = a.wrapping_add(b);
-        a = temp;
-    }
-    b
+
+    a
 }
 
 fn main() {
     let start = Instant::now();
-    let results: Vec<u64> = (0..10_000_000).map(fibonacci).collect();
-    println!("Elapsed: {:.2?}", start.elapsed());  // ~0.3s
+
+    let mut acc: u64 = 0;
+    for _ in 0..10_000_000 {
+        acc ^= fibonacci(40);
+    }
+
+    println!("Elapsed: {:.2?}", start.elapsed());
+    println!("Ignore: {}", acc);
 }
 ```
-
+> Note: Rust should be run in release mode (`cargo run --release`) for a fair performance comparison.
 > **Why the difference?** Python dispatches every `+` through a dictionary lookup,
 > unboxes integers from heap objects, and checks types at every operation. Rust compiles
 > `fibonacci` directly to a handful of x86 `add`/`mov` instructions — the same code a
